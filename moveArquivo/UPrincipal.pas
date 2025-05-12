@@ -1,0 +1,153 @@
+unit UPrincipal;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, System.IOUtils, System.IniFiles;
+
+type
+  TFrmMonitoramento = class(TForm)
+    edtOrigem: TEdit;
+    edtDestino: TEdit;
+    Timer1: TTimer;
+    btnIniciar: TButton;
+    chkMover: TCheckBox;
+    MemoLog: TMemo;
+    TrayIcon1: TTrayIcon;
+    procedure Timer1Timer(Sender: TObject);
+    procedure btnIniciarClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
+    procedure TrayIcon1Click(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+  private
+    procedure EscreveLog(const Mensagem: string);
+  public
+  end;
+
+var
+  FrmMonitoramento: TFrmMonitoramento;
+  const
+  ARQUIVO_INI = 'config.ini'; // salva no mesmo diretório da aplicação
+
+
+implementation
+
+{$R *.dfm}
+
+procedure TFrmMonitoramento.EscreveLog(const Mensagem: string);
+var
+  Linha: string;
+  CaminhoLog: string;
+begin
+  Linha := FormatDateTime('dd/mm/yyyy hh:nn:ss', Now) + ' - ' + Mensagem;
+  MemoLog.Lines.Add(Linha);
+
+  CaminhoLog := ExtractFilePath(Application.ExeName) + 'log.txt';
+  TFile.AppendAllText(CaminhoLog, Linha + sLineBreak, TEncoding.UTF8);
+end;
+
+procedure TFrmMonitoramento.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  Action := caFree;
+end;
+
+procedure TFrmMonitoramento.FormCloseQuery(Sender: TObject;
+  var CanClose: Boolean);
+begin
+  Hide; // esconde o formulário
+  TrayIcon1.Visible := True; // mostra o ícone na bandeja
+  CanClose := False; // evita que o app seja finalizado
+end;
+
+procedure TFrmMonitoramento.FormShow(Sender: TObject);
+var
+  Ini: TIniFile;
+begin
+  Ini := TIniFile.Create(ExtractFilePath(Application.ExeName) + ARQUIVO_INI);
+  try
+    edtOrigem.Text := Ini.ReadString('Paths', 'Origem', '');
+    edtDestino.Text := Ini.ReadString('Paths', 'Destino', '');
+    chkMover.Checked := Ini.ReadBool('Paths', 'Mover', False);
+  finally
+    Ini.Free;
+  end;
+end;
+
+procedure TFrmMonitoramento.btnIniciarClick(Sender: TObject);
+var
+  Ini: TIniFile;
+begin
+  if (Trim(edtOrigem.Text) = '') or (Trim(edtDestino.Text) = '') then
+  begin
+    EscreveLog('Preencha os caminhos de origem e destino.');
+    Exit;
+  end;
+
+  // Salva os caminhos no arquivo INI
+  Ini := TIniFile.Create(ExtractFilePath(Application.ExeName) + ARQUIVO_INI);
+  try
+    Ini.WriteString('Paths', 'Origem', edtOrigem.Text);
+    Ini.WriteString('Paths', 'Destino', edtDestino.Text);
+    Ini.WriteBool('Paths', 'Mover', chkMover.Checked);
+  finally
+    Ini.Free;
+  end;
+
+  Timer1.Enabled := True;
+  EscreveLog('Monitoramento iniciado...');
+  edtOrigem.Enabled:=False;
+  edtDestino.Enabled:=False;
+  btnIniciar.Enabled:=False;
+end;
+
+
+procedure TFrmMonitoramento.Timer1Timer(Sender: TObject);
+var
+  Origem, Destino, ArquivoOrigem, ArquivoDestino: string;
+begin
+  Origem := IncludeTrailingPathDelimiter(edtOrigem.Text);
+  Destino := IncludeTrailingPathDelimiter(edtDestino.Text);
+  ArquivoOrigem  := Origem + 'txitens.txt';
+  ArquivoDestino := Destino + 'txitens.txt';
+
+  if FileExists(ArquivoOrigem) then
+  begin
+    try
+      ForceDirectories(Destino);
+      if chkMover.Checked then
+      begin
+        if FileExists(ArquivoDestino) then
+          DeleteFile(ArquivoDestino); // remove destino antes de mover
+
+        TFile.Move(ArquivoOrigem, ArquivoDestino);
+        EscreveLog('Arquivo movido com sucesso para "' + ArquivoDestino + '".');
+      end
+      else
+      begin
+        TFile.Copy(ArquivoOrigem, ArquivoDestino, True);
+        EscreveLog('Arquivo copiado com sucesso para "' + ArquivoDestino + '".');
+      end;
+
+      // ?? Mostra notificação tipo balão no Windows
+      TrayIcon1.BalloonTitle := 'Arquivo Transferido';
+      TrayIcon1.BalloonHint := 'txitens.txt foi transferido com sucesso.';
+      TrayIcon1.BalloonTimeout := 3000; // milissegundos
+      TrayIcon1.ShowBalloonHint;
+    except
+      on E: Exception do
+        EscreveLog('Erro ao transferir o arquivo: ' + E.Message);
+    end;
+  end;
+end;
+
+procedure TFrmMonitoramento.TrayIcon1Click(Sender: TObject);
+begin
+  Show;
+  Application.BringToFront;
+  TrayIcon1.Visible := False; // oculta o ícone da bandeja
+end;
+
+end.
+

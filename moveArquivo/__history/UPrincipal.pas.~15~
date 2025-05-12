@@ -1,0 +1,119 @@
+unit UPrincipal;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, System.IOUtils, System.IniFiles;
+
+type
+  TForm1 = class(TForm)
+    edtOrigem: TEdit;
+    edtDestino: TEdit;
+    Timer1: TTimer;
+    btnIniciar: TButton;
+    chkMover: TCheckBox;
+    MemoLog: TMemo;
+    procedure Timer1Timer(Sender: TObject);
+    procedure btnIniciarClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
+  private
+    procedure EscreveLog(const Mensagem: string);
+  public
+  end;
+
+var
+  Form1: TForm1;
+  const
+  ARQUIVO_INI = 'config.ini'; // salva no mesmo diretório da aplicação
+
+
+implementation
+
+{$R *.dfm}
+
+procedure TForm1.EscreveLog(const Mensagem: string);
+begin
+  MemoLog.Lines.Add(FormatDateTime('dd/mm/yyyy hh:nn:ss', Now) + ' - ' + Mensagem);
+end;
+
+procedure TForm1.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  Action := caFree;
+end;
+
+procedure TForm1.FormShow(Sender: TObject);
+var
+  Ini: TIniFile;
+begin
+  Ini := TIniFile.Create(ExtractFilePath(Application.ExeName) + ARQUIVO_INI);
+  try
+    edtOrigem.Text := Ini.ReadString('Paths', 'Origem', '');
+    edtDestino.Text := Ini.ReadString('Paths', 'Destino', '');
+    chkMover.Checked := Ini.ReadBool('Paths', 'Mover', False);
+  finally
+    Ini.Free;
+  end;
+end;
+
+procedure TForm1.btnIniciarClick(Sender: TObject);
+var
+  Ini: TIniFile;
+begin
+  if (Trim(edtOrigem.Text) = '') or (Trim(edtDestino.Text) = '') then
+  begin
+    EscreveLog('Preencha os caminhos de origem e destino.');
+    Exit;
+  end;
+
+  // Salva os caminhos no arquivo INI
+  Ini := TIniFile.Create(ExtractFilePath(Application.ExeName) + ARQUIVO_INI);
+  try
+    Ini.WriteString('Paths', 'Origem', edtOrigem.Text);
+    Ini.WriteString('Paths', 'Destino', edtDestino.Text);
+    Ini.WriteBool('Paths', 'Mover', chkMover.Checked);
+  finally
+    Ini.Free;
+  end;
+
+  Timer1.Enabled := True;
+  EscreveLog('Monitoramento iniciado...');
+end;
+
+
+procedure TForm1.Timer1Timer(Sender: TObject);
+var
+  Origem, Destino, ArquivoOrigem, ArquivoDestino: string;
+begin
+  Origem := IncludeTrailingPathDelimiter(edtOrigem.Text);
+  Destino := IncludeTrailingPathDelimiter(edtDestino.Text);
+  ArquivoOrigem  := Origem + 'txitens.txt';
+  ArquivoDestino := Destino + 'txitens.txt';
+
+  if FileExists(ArquivoOrigem) then
+  begin
+    try
+      ForceDirectories(Destino);
+      if chkMover.Checked then
+      begin
+        if FileExists(ArquivoDestino) then
+          DeleteFile(ArquivoDestino); // remove destino antes de mover
+
+        TFile.Move(ArquivoOrigem, ArquivoDestino);
+        EscreveLog('Arquivo movido com sucesso para "' + ArquivoDestino + '".');
+      end
+      else
+      begin
+        TFile.Copy(ArquivoOrigem, ArquivoDestino, True);
+        EscreveLog('Arquivo copiado com sucesso para "' + ArquivoDestino + '".');
+      end;
+    except
+      on E: Exception do
+        EscreveLog('Erro ao transferir o arquivo: ' + E.Message);
+    end;
+  end;
+end;
+
+end.
+

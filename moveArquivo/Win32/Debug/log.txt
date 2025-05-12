@@ -1,0 +1,4 @@
+12/05/2025 20:14:24 - Monitoramento iniciado...
+12/05/2025 20:14:47 - Arquivo movido com sucesso para "C:\MeuSistema\txt\txitens.txt".
+12/05/2025 20:16:02 - Arquivo movido com sucesso para "C:\MeuSistema\txt\txitens.txt".
+12/05/2025 20:16:27 - Arquivo movido com sucesso para "C:\MeuSistema\txt\txitens.txt".
